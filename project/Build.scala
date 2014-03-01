@@ -7,7 +7,7 @@ object Build extends sbt.Build {
 
   val buildVCSNumber = settingKey[String]("Current VCS revision.")
 
-  lazy val sbsSbtBuild = Project("sbt-sbsbuild", file("."), settings = sbsSbtBuildSettings)
+  lazy val sbsSbtBuild = Project("sbt-sbs", file("."), settings = sbsSbtBuildSettings)
 
   def sbsSbtBuildSettings = Project.defaultSettings ++ Seq(
     name := "SBT Sbs",
