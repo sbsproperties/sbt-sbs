@@ -11,7 +11,7 @@ object Build extends sbt.Build {
 
   def sbsSbtBuildSettings = Project.defaultSettings ++ Seq(
     name := "SBT Sbs",
-    version := s"1.0-SNAPAHOT+${buildVCSNumber.value}",
+    version := s"1.0-SNAPSHOT+${buildVCSNumber.value}",
     organization := "ke.co.sbsproperties",
     description := "SBT Plugin for quick configuration of an SBS project.",
     startYear := Some(2014),
