@@ -28,7 +28,8 @@ object Build extends sbt.Build {
         val (name, url) = if (v.contains("-SNAPSHOT")) ("SBS Ivy Snapshots", root + "ivy-snapshot") else ("SBS Ivy Releases", root + "ivy-release")
         Some(Resolver.url(name, new URL(url))(Resolver.ivyStylePatterns))
     },
-    buildVCSNumber <<= sbsTeamcity(tc => buildVCSNumberSetting(tc))
+    buildVCSNumber <<= sbsTeamcity(tc => buildVCSNumberSetting(tc)),
+    Dependencies.sbtIdea
   )
 
   def teamcity: Boolean = if (sys.env.get("TEAMCITY_VERSION").isEmpty) false else true
@@ -44,6 +45,10 @@ object Build extends sbt.Build {
   }
 
   def buildVCSNumberSetting(teamcity: Boolean) = (if (teamcity) sys.env.get("BUILD_VCS_NUMBER").get
-  else
-    Process("git rev-parse HEAD").lines.head).take(7)
+    else Process("git rev-parse HEAD").lines.head).take(7)
+
+  object Dependencies {
+    def sbtIdea = addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.6.0")
+  }
+
 }
