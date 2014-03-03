@@ -42,21 +42,13 @@ trait SBSProject {
           "Specification-Version" -> sv)
     },
     mappings in(Compile, packageBin) <+= baseDirectory map {
-      (base: File) =>
-        (base / "LICENSE") -> "META-INF/LICENSE"
-    },
+      (base: File) => (base / "LICENSE") -> "META-INF/LICENSE"},
     mappings in(Compile, packageSrc) <+= baseDirectory map {
-      (base: File) =>
-        (base / "LICENSE") -> "META-INF/LICENSE"
-    },
+      (base: File) => (base / "LICENSE") -> "META-INF/LICENSE"},
     mappings in(Compile, packageBin) <+= baseDirectory map {
-      (base: File) =>
-        (base / "NOTICE") -> "META-INF/NOTICE"
-    },
+      (base: File) => (base / "NOTICE") -> "META-INF/NOTICE"},
     mappings in(Compile, packageSrc) <+= baseDirectory map {
-      (base: File) =>
-        (base / "NOTICE") -> "META-INF/NOTICE"
-    }
+      (base: File) => (base / "NOTICE") -> "META-INF/NOTICE"}
   )
 
   def publishSettings: Seq[Setting[_]] = Seq(

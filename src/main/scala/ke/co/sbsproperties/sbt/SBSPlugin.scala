@@ -49,9 +49,7 @@ object SBSPlugin extends Plugin {
     sbsProfile := Seq(DevelopmentProfile, PreReleaseProfile, ReleaseProfile).find(_.is),
     sbsVersionMessage <<= (sbsTeamcity, sbsImplementationVersion).map(
       (teamcity, version) => Impl.sbsVersionMessageSetting(teamcity, version)),
-    Keys.version <<= (Keys.version, sbsBuildNumber, sbsBuildVCSNumber, sbsProfile)((v, bn, vn, p) => Impl.version(v, bn, vn, p)),
-    Keys.credentials <<= (sbsTeamcity, Keys.credentials) map ((teamcity, credentials) =>
-      if (teamcity) Seq(Impl.credentialsFromEnv("SBS_PUBLISH_REALM", "SBS_PUBLISH_USER", "SBS_PUBLISH_KEY", "dev.sbsproperties.co.ke")) else credentials)
+    Keys.version <<= (Keys.version, sbsBuildNumber, sbsBuildVCSNumber, sbsProfile)((v, bn, vn, p) => Impl.version(v, bn, vn, p))
   )
 
   private object Impl {
@@ -101,27 +99,6 @@ object SBSPlugin extends Plugin {
 
     def sbsVersionMessageSetting(teamcity: Boolean, implementationVersion: String) =
       if (teamcity) println(s"##teamcity[buildNumber '$implementationVersion']")
-
-    def credentialsFromEnv(realmEnv: String, userEnv: String, keyEnv: String, host: String): Credentials = {
-      def e(key: String) = sys.env.get(key).getOrElse("UNDEFINED")
-
-      if (e(keyEnv).startsWith("UNDEF")) {
-        println(s"##teamcity[message text='Required publishing authentication key not defined at env.$keyEnv. Credentials likely invalid.' status='WARNING']")
-        Credentials(e(realmEnv), host, e(userEnv), e(keyEnv))
-      }
-      Credentials(e(realmEnv), host, e(userEnv), e(keyEnv))
-    }
-
-    def release(profile: BuildProfile) = profile match {
-      case ReleaseProfile => true
-      case _ => false
-    }
-
-    def releaseOrPre(profile: BuildProfile) = profile match {
-      case ReleaseProfile => true
-      case PreReleaseProfile => true
-      case _ => false
-    }
   }
 
 }
