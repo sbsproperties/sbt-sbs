@@ -30,6 +30,7 @@ object Build extends sbt.Build {
     buildVCSNumber <<= sbsTeamcity(tc => buildVCSNumberSetting(tc)),
     sbtIdea,
     sbtTeamcity,
+    aetherDeploy,
     resolvers += Resolver.sbtPluginRepo("snapshots")
   )
 
@@ -41,6 +42,7 @@ object Build extends sbt.Build {
   object Dependencies {
     def sbtIdea = addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.6.0")
     def sbtTeamcity = addSbtPlugin("org.jetbrains" % "sbt-teamcity-logger" % "0.1.0-SNAPSHOT")
+    def aetherDeploy = addSbtPlugin("no.arktekk.sbt" % "aether-deploy" % "0.11")
   }
 
 }

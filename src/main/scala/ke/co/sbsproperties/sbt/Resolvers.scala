@@ -5,22 +5,23 @@ import sbt._
 
 object Resolvers {
 
-  val host = "https://dev.sbsproperties.co.ke/repo"
+  val repositoryRoot = "https://dev.sbsproperties.co.ke/repo"
+  val ivyRepositoryRoot = s"$repositoryRoot/ivy-"
+  val mavenRepositoryRoot = s"$repositoryRoot/maven"
 
-  def publishToRepo(release: Boolean): URLRepository = if (!release) sbsIvySnapshot else sbsIvyRelease
+  def status(release: Boolean) = if (release) ("Release", "release") else ("Snapshot", "snapshot")
 
-  def sbsIvyRepo(release: Boolean): URLRepository = Resolver.url(repoName(release), repoUrl(release))(Resolver.ivyStylePatterns)
+  def sbsMavenRepository(release: Boolean): MavenRepository =  s"SBS Maven ${status(release)._1} Repository" at
+    s"$mavenRepositoryRoot-${status(release)._2}"
 
-  val sbsIvyRelease = sbsIvyRepo(release = false)
+  def sbsIvyRepository(release: Boolean) = Resolver.url(s"SBS Ivy ${status(release)._1} Repository",
+    url(s"$ivyRepositoryRoot-${status(release)._2}"))
 
-  val sbsIvySnapshot = sbsIvyRepo(release = true)
+  def publishToRepo(release: Boolean, mvn: Boolean): Resolver = if(mvn) sbsMavenRepository(release) else
+    sbsIvyRepository(release)
 
-  lazy val releaseResolvers = Seq(sbsIvyRelease)
-  lazy val snapshotResolvers = Seq(sbsIvySnapshot)
+  lazy val releaseResolvers = Seq(sbsIvyRepository(release = true), sbsMavenRepository(release = true))
+  lazy val snapshotResolvers = Seq(sbsIvyRepository(release = false), sbsMavenRepository(release = false))
   lazy val allResolvers = releaseResolvers ++ snapshotResolvers
-
-  private def repoName(release: Boolean): String = s"SBS Properties Ivy ${if (release) "Snapshot" else "Release"} Repository"
-
-  private def repoUrl(release: Boolean): URL = sbt.url(s"https://dev.sbsproperties.co.ke/repo/${if (release) "ivy-snapshot" else "ivy-release"}")
 
 }

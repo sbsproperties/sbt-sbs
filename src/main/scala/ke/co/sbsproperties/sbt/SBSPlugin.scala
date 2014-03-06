@@ -49,7 +49,8 @@ object SBSPlugin extends Plugin {
     sbsProfile := Seq(DevelopmentProfile, PreReleaseProfile, ReleaseProfile).find(_.is),
     sbsVersionMessage <<= (sbsTeamcity, sbsImplementationVersion).map(
       (teamcity, version) => Impl.sbsVersionMessageSetting(teamcity, version)),
-    Keys.version <<= (Keys.version, sbsBuildNumber, sbsBuildVCSNumber, sbsProfile)((v, bn, vn, p) => Impl.version(v, bn, vn, p))
+    Keys.version <<= (Keys.version, Keys.publishMavenStyle, sbsBuildNumber, sbsBuildVCSNumber, sbsProfile)(
+      (v, m, bn, vn, p) => Impl.version(v, m, bn, vn, p))
   )
 
   private object Impl {
@@ -69,9 +70,10 @@ object SBSPlugin extends Plugin {
       if (!version.endsWith(implementationMeta(buildNumber, buildVCSNumber)) && !version.contains("+"))
         s"$version+${implementationMeta(buildNumber, buildVCSNumber)}" else version
 
-    def version(version: String, buildNumber: String, buildVCSNumber: String, profile: Option[BuildProfile]): String = profile match {
-      case Some(ReleaseProfile) => version
-      case Some(DevelopmentProfile) => version
+    def version(version: String, mvn: Boolean, buildNumber: String, buildVCSNumber: String, profile: Option[BuildProfile]): String = (profile, mvn) match {
+      case (Some(ReleaseProfile), false) => version
+      case (Some(DevelopmentProfile), false) => version
+      case (_, true) => version
       case _ => s"$version+${implementationMeta(buildNumber, buildVCSNumber)}"
     }
 

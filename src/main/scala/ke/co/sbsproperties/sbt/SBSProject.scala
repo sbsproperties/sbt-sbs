@@ -6,14 +6,20 @@ import ke.co.sbsproperties.sbt.SBSPlugin.{ReleaseProfile, sbsImplementationVersi
 
 trait SBSProject {
 
-  def subProject(base: String, prefix: String = "sbs-")(project: String): Project =
-    apply(project, prefix, base = file(base) / project.stripPrefix(prefix))
+  def subProject(base: String, prefix: String = "sbs-")(project: String, sbtPlugin: Boolean = false): Project =
+    apply(project, prefix, sbtPlugin, base = file(base) / project.stripPrefix(prefix))
 
-  def rootProject(project: String, prefix: String = "sbs-"): Project = apply(project, prefix, file("."))
+  def rootProject(project: String, prefix: String = "sbs-", sbtPlugin: Boolean = false): Project = apply(project, prefix, sbtPlugin, file("."))
 
-  def apply(project: String, prefix: String, base: File): Project =
+  def apply(project: String, prefix: String, sbtPlugin: Boolean, base: File): Project = {
+    import aether.Aether.aetherPublishSettings
+
+    val projectSettings = if (!sbtPlugin) defaultProjectSettings ++ aetherPublishSettings else
+      defaultProjectSettings :+ (Keys.sbtPlugin := sbtPlugin)
+
     Project(id = if (project.startsWith(prefix)) project else prefix + project, base = base).
-      settings(defaultProjectSettings: _*)
+      settings(projectSettings: _*)
+  }
 
   lazy val defaultProjectSettings: Seq[Setting[_]] = projectBaseSettings ++ organisationSettings ++ compileSettings ++
     packageSettings ++ publishSettings
@@ -29,7 +35,8 @@ trait SBSProject {
   )
 
   def compileSettings = Seq[Setting[_]](
-    scalacOptions ++= DefaultOptions.scalac ++ Seq("-encoding", "utf8") :+ Opts.compile.deprecation :+ Opts.compile.unchecked)
+    scalacOptions ++= Seq(Opts.compile.deprecation, Opts.compile.unchecked, Opts.compile.explaintypes, "-feature")
+    )
 
   def packageSettings: Seq[Setting[_]] = Seq(
     packageOptions <<= (sbsImplementationVersion, version, packageOptions) map {
@@ -52,11 +59,14 @@ trait SBSProject {
   )
 
   def publishSettings: Seq[Setting[_]] = Seq(
-    publishTo <<= SBSPlugin.sbsProfile {
-      case Some(ReleaseProfile) => Some(Resolvers.publishToRepo(release = true))
-      case _ => Some(Resolvers.publishToRepo(release = false))
+    publishTo <<= (SBSPlugin.sbsProfile, publishMavenStyle) { (profile, mvn) =>
+      def release = profile match {
+        case Some(ReleaseProfile) => true
+        case _ => false
+      }
+      Some(Resolvers.publishToRepo(release, mvn))
     },
-    publishMavenStyle := false
+    publishMavenStyle := !sbtPlugin.value
   )
 
   def formalName(name: String): String = name.replaceFirst("sbs", "SBS").split("-").map(_.capitalize).mkString(" ")
