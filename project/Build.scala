@@ -22,19 +22,25 @@ object Build extends sbt.Build {
     publishMavenStyle := false,
     sbsTeamcity := teamcity,
     publishTo <<= version {
-      (v) =>
-        val root = "https://dev.sbsproperties.co.ke/repo/"
-        val (name, url) = if (v.contains("-SNAPSHOT")) ("SBS Ivy Snapshots", root + "ivy-snapshot") else ("SBS Ivy Releases", root + "ivy-release")
-        Some(Resolver.url(name, new URL(url))(Resolver.ivyStylePatterns))
+      (v) => {
+        def r = !v.contains("SNAPSHOT")
+       Some(ivyRepo(r))
+      }
     },
     buildVCSNumber <<= sbsTeamcity(tc => buildVCSNumberSetting(tc)),
     sbtIdea,
     sbtTeamcity,
     aetherDeploy,
-    resolvers += Resolver.sbtPluginRepo("snapshots")
+    resolvers ++= Seq(Resolver.sbtPluginRepo("snapshots"), ivyRepo(release = false))
   )
 
   def teamcity: Boolean = if (sys.env.get("TEAMCITY_VERSION").isEmpty) false else true
+
+  def ivyRepo(release: Boolean): URLRepository = {
+    def root = "https://dev.sbsproperties.co.ke/repo"
+    def status = if (release) "release" else "snapshot"
+    Resolver.url(s"SBS Ivy $status Repo", url(s"$root/ivy-$status"))(Resolver.ivyStylePatterns)
+  }
 
   def buildVCSNumberSetting(teamcity: Boolean) = (if (teamcity) sys.env.get("BUILD_VCS_NUMBER").get
     else Process("git rev-parse HEAD").lines.head).take(7)
@@ -42,7 +48,7 @@ object Build extends sbt.Build {
   object Dependencies {
     def sbtIdea = addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.6.0")
     def sbtTeamcity = addSbtPlugin("org.jetbrains" % "sbt-teamcity-logger" % "0.1.0-SNAPSHOT")
-    def aetherDeploy = addSbtPlugin("no.arktekk.sbt" % "aether-deploy" % "0.11")
+    def aetherDeploy = addSbtPlugin("ke.co.sbsproperties.sbt" % "aether-deploy" % "0.12-SNAPSHOT") //TODO use repackaged aether-deploy until upstream bug fixed
   }
 
 }
