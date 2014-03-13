@@ -14,11 +14,12 @@ trait SBSProject {
   def apply(project: String, prefix: String, sbtPlugin: Boolean, base: File): Project = {
     import aether.Aether.aetherPublishSettings
 
-    val projectSettings = if (!sbtPlugin) defaultProjectSettings ++ aetherPublishSettings else
-      defaultProjectSettings :+ (Keys.sbtPlugin := sbtPlugin)
+    def projectSettings = if (!sbtPlugin) defaultProjectSettings ++ aetherPublishSettings else defaultProjectSettings :+
+      (Keys.sbtPlugin := sbtPlugin)
 
-    Project(id = if (project.startsWith(prefix)) project else prefix + project, base = base).
-      settings(projectSettings: _*)
+    def id = if (project.startsWith(prefix)) project else prefix + project
+
+    Project(id = id, base = base).settings(projectSettings: _*)
   }
 
   lazy val defaultProjectSettings: Seq[Setting[_]] = projectBaseSettings ++ organisationSettings ++ compileSettings ++
@@ -59,8 +60,8 @@ trait SBSProject {
   )
 
   def publishSettings: Seq[Setting[_]] = Seq(
-    publishTo <<= (SBSPlugin.sbsProfile, publishMavenStyle) { (profile, mvn) =>
-      def release = profile match {
+    publishTo <<= (SBSPlugin.sbsProfile, publishMavenStyle, version) { (profile, mvn, v) =>
+      def release = if (v.contains("SNAPSHOT")) false else profile match {
         case Some(ReleaseProfile) => true
         case _ => false
       }
