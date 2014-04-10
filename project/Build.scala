@@ -28,7 +28,6 @@ object Build extends sbt.Build {
       }
     },
     buildVCSNumber <<= sbsTeamcity(tc => buildVCSNumberSetting(tc)),
-    sbtIdea,
     sbtTeamcity,
     resolvers ++= Seq(Resolver.sbtPluginRepo("snapshots"), ivyRepo(release = false))
   )
@@ -45,7 +44,6 @@ object Build extends sbt.Build {
     else Process("git rev-parse HEAD").lines.head).take(7)
 
   object Dependencies {
-    def sbtIdea = addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.6.0")
     def sbtTeamcity = addSbtPlugin("org.jetbrains" % "sbt-teamcity-logger" % "0.1.0-SNAPSHOT")
     def aetherDeploy = uri("https://github.com/arktekk/sbt-aether-deploy.git") //TODO use source dep until binary available
   }
