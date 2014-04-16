@@ -6,7 +6,7 @@ import sbt._
 object Resolvers {
 
   val repositoryRoot = "https://dev.sbsproperties.co.ke/repo"
-  val ivyRepositoryRoot = s"$repositoryRoot/ivy-"
+  val ivyRepositoryRoot = s"$repositoryRoot/ivy"
   val mavenRepositoryRoot = s"$repositoryRoot/maven"
 
   def status(release: Boolean) = if (release) ("Release", "release") else ("Snapshot", "snapshot")

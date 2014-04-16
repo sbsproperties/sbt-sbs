@@ -8,9 +8,11 @@ object Build extends sbt.Build {
 
   val buildVCSNumber = settingKey[String]("Current VCS revision.")
 
-  lazy val sbsSbtBuild = Project("sbt-sbs", file("."), settings = sbsSbtBuildSettings).dependsOn(Dependencies.aetherDeploy)
+  lazy val sbsSbtBuild = Project("sbt-sbs", file("."))
+    .settings(sbsSbtBuildSettings: _*)
+    .dependsOn(Dependencies.aetherDeploy)
 
-  def sbsSbtBuildSettings = Project.defaultSettings ++ Seq(
+  def sbsSbtBuildSettings = ScriptedPlugin.scriptedSettings ++ Seq[Setting[_]](
     name := "SBT Sbs",
     version := s"1.0-SNAPSHOT+${buildVCSNumber.value}",
     organization := "ke.co.sbsproperties",
@@ -29,7 +31,8 @@ object Build extends sbt.Build {
     },
     buildVCSNumber <<= sbsTeamcity(tc => buildVCSNumberSetting(tc)),
     sbtTeamcity,
-    resolvers ++= Seq(Resolver.sbtPluginRepo("snapshots"), ivyRepo(release = false))
+    resolvers ++= Seq(Resolver.sbtPluginRepo("snapshots"), ivyRepo(release = false)),
+    scalacOptions in Compile += "-deprecation"
   )
 
   def teamcity: Boolean = if (sys.env.get("TEAMCITY_VERSION").isEmpty) false else true
