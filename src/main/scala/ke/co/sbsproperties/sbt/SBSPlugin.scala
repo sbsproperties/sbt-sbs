@@ -10,7 +10,7 @@ object SBSPlugin extends AutoPlugin {
 
   override def trigger: PluginTrigger = allRequirements
 
-  override val projectSettings: Seq[Def.Setting[_]] = sbsPluginSettings
+  override lazy val projectSettings: Seq[Def.Setting[_]] = sbsPluginSettings
 
   sealed trait BuildProfile
 
