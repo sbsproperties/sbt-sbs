@@ -30,7 +30,7 @@ object Build extends sbt.Build {
       }
     },
     buildVCSNumber <<= sbsTeamcity(tc => buildVCSNumberSetting(tc)),
-    sbtTeamcity,
+    sbtBuildInfo, sbtTeamcity,
     resolvers ++= Seq(Resolver.sbtPluginRepo("snapshots"), ivyRepo(release = false)),
     scalacOptions in Compile += "-deprecation"
   )
@@ -47,8 +47,9 @@ object Build extends sbt.Build {
     else Process("git rev-parse HEAD").lines.head).take(7)
 
   object Dependencies {
-    def sbtTeamcity = addSbtPlugin("org.jetbrains" % "sbt-teamcity-logger" % "0.1.0-SNAPSHOT")
-    def aetherDeploy = uri("https://github.com/arktekk/sbt-aether-deploy.git") //TODO use source dep until binary available
+    val sbtBuildInfo = addSbtPlugin("com.eed3si9n" % "sbt-buildinfo" % "0.3.1")
+    val sbtTeamcity = addSbtPlugin("org.jetbrains" % "sbt-teamcity-logger" % "0.1.0-SNAPSHOT")
+    val aetherDeploy = uri("https://github.com/arktekk/sbt-aether-deploy.git") //TODO use source dep until binary available
   }
 
 }

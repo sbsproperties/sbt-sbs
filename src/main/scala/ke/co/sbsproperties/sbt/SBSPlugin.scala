@@ -4,6 +4,7 @@ import sbt._
 import Keys._
 import aether.Aether
 import scala.util.Try
+import sbtbuildinfo.{Plugin => BuildInfoPlugin}
 
 
 object SBSPlugin extends AutoPlugin {
@@ -38,7 +39,7 @@ object SBSPlugin extends AutoPlugin {
   val sbsProfile =
     settingKey[BuildProfile]("'BuildProfile' used to determine build specific settings.")
 
-  private def sbsPluginSettings = Seq(
+  private def sbsPluginSettings = Seq[Setting[_]](
     sbsTeamcity := Impl.teamcity,
     sbsBuildNumber <<= sbsTeamcity(Impl.buildNumber),
     sbsBuildVCSNumber <<= (Keys.baseDirectory, sbsTeamcity)((d, t) => Impl.buildVcsNumber(t, d)),
@@ -108,20 +109,45 @@ object SBSPlugin extends AutoPlugin {
           case ReleaseProfile => true
           case _ => false
         }
-        Some(Resolvers.publishToRepo(release, mvn))
+        Some(SBSResolver.publishToRepo(release, mvn))
     },
     publishMavenStyle := !sbtPlugin.value
   )
 
-  implicit class SBSProjectSyntax(p: Project) {
+  
+  def sbsBuildInfoSettings = {
+    import BuildInfoPlugin._
+    def defaultInfoKeys = Seq[BuildInfoKey](
+      BuildInfoKey.setting(sbsImplementationVersion),
+      BuildInfoKey.setting(scalaVersion),
+      BuildInfoKey.setting(sbsProfile))
+    buildInfoSettings ++ Seq(
+      sourceGenerators in Compile <+= buildInfo,
+      buildInfoKeys := defaultInfoKeys,
+      buildInfoPackage := s"${normalizedName.value.replace("-", ".")}.build"
+    )
+  }
 
-    def withSubOrganization(s: String) = p.settings(organization <<= organization(_ + s".$s"))
+  def addBuildinfoKeys(keys: SettingKey[Any]*): Setting[_] = {
+    import BuildInfoPlugin._
+    buildInfoKeys ++= keys.map(BuildInfoKey.setting)
+  }
+  
+  def addSubOrganisation(s: String): Setting[String] = organization <<= organization(_ + s".$s")
+
+  
+  implicit class SBSProjectSyntax(p: Project) {
+    
+    def additionalInfoKeys(keys: SettingKey[Any]*) = p.settings(addBuildinfoKeys(keys: _*))
+
+    def withSubOrganization(s: String) = p.settings(addSubOrganisation(s))
 
     def withSbsProjectSettings = p.settings(sbsProjectSettings: _*)
 
     def withSbsSbtPluginSettings = p.settings(sbsSbtPluginProjectSettings: _*)
   }
 
+  
   private object Impl {
 
     def teamcity: Boolean = !sys.env.get("TEAMCITY_VERSION").isEmpty
@@ -170,7 +196,6 @@ object SBSPlugin extends AutoPlugin {
      * @return Project vcs revision number
      */
     def buildVcsNumber(teamcity: Boolean, baseDir: File): String = {
-
       def isGitRepo(dir: File): Boolean = if (dir.listFiles().map(_.getName).contains(".git")) true
       else {
         val parent = dir.getParentFile
@@ -182,7 +207,6 @@ object SBSPlugin extends AutoPlugin {
         case (false, true) => Try(Process("git rev-parse HEAD").lines.head).getOrElse("UNKNOWN")
         case _ => "UNKNOWN"
       }
-
       vcsNo.take(7)
     }
 
