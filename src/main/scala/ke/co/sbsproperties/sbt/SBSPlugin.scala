@@ -53,7 +53,7 @@ object SBSPlugin extends AutoPlugin {
   )
 
   val sbsDefaultSettings: Seq[Setting[_]] = sbsBaseSettings ++ sbsCompileSettings ++ sbsPackageSettings ++
-    sbsPublishSettings
+    sbsPublishSettings :+ sbsResolverSetting
 
   val sbsProjectSettings = Aether.aetherPublishSettings ++ sbsDefaultSettings
 
@@ -113,8 +113,10 @@ object SBSPlugin extends AutoPlugin {
     },
     publishMavenStyle := !sbtPlugin.value
   )
-
   
+  def sbsResolverSetting: Setting[Seq[Resolver]] = resolvers ++= SBSResolver.releaseResolvers
+  def sbsSnapshotResolverSetting: Setting[Seq[Resolver]] = resolvers ++= SBSResolver.snapshotResolvers
+
   def sbsBuildInfoSettings = {
     import BuildInfoPlugin._
     def defaultInfoKeys = Seq[BuildInfoKey](
@@ -145,6 +147,8 @@ object SBSPlugin extends AutoPlugin {
     def withSbsProjectSettings = p.settings(sbsProjectSettings: _*)
 
     def withSbsSbtPluginSettings = p.settings(sbsSbtPluginProjectSettings: _*)
+
+    def withSbsSnapshotResolvers = p.settings(sbsSnapshotResolverSetting)
   }
 
   
