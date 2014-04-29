@@ -25,7 +25,6 @@ object Build extends sbt.Build {
     sbtPlugin := true,
     publishMavenStyle := false,
     sbsTeamcity := teamcity,
-    useGpg := true,
     publish <<= PgpKeys.publishSigned,
     publishTo <<= version {
       (v) => {
