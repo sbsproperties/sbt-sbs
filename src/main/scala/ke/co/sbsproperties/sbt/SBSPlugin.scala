@@ -4,7 +4,9 @@ import sbt._
 import Keys._
 import aether.Aether
 import scala.util.Try
+import com.typesafe.sbt.SbtPgp
 import sbtbuildinfo.{Plugin => BuildInfoPlugin}
+import com.typesafe.sbt.pgp.PgpKeys
 
 
 object SBSPlugin extends AutoPlugin {
@@ -52,21 +54,38 @@ object SBSPlugin extends AutoPlugin {
       (v, m, bn, vn, p) => Impl.version(v, m, bn, vn, p))
   )
 
-  val sbsDefaultSettings: Seq[Setting[_]] = sbsBaseSettings ++ sbsCompileSettings ++ sbsPackageSettings ++
-    sbsPublishSettings :+ sbsResolverSetting
+  val sbsDefaultSettings: Seq[Setting[_]] = sbsBaseSettings ++ sbsCompileSettings ++ sbsPackageSettings ++ 
+    pgpSettings ++ sbsPublishSettings ++ sbsBuildInfoSettings :+ sbsResolverSetting
 
-  val sbsProjectSettings = Aether.aetherPublishSettings ++ sbsDefaultSettings
+  val sbsProjectSettings = Aether.aetherPublishSettings ++ sbsDefaultSettings ++ {
+    import Aether._
+    Seq(
+      aetherArtifact <<=
+        (coordinates, Keys.`package` in Compile, makePom in Compile, PgpKeys.signedArtifacts in Compile, sbsProfile, aetherArtifact) map {
+          (coords: aether.MavenCoordinates, mainArtifact: File, pom: File, artifacts: Map[Artifact, File], profile, orig) =>
+            def signed = aether.Aether.createArtifact(artifacts, pom, coords, mainArtifact)
+            profile match {
+              case ReleaseProfile | PreReleaseProfile => signed
+              case _ => orig
+            }
+      }
+    )
+  }
 
-  val sbsSbtPluginProjectSettings = sbsDefaultSettings :+ (Keys.sbtPlugin := true)
+  val sbsSbtPluginProjectSettings = sbsDefaultSettings ++ Seq(
+    Keys.sbtPlugin := true,
+    Keys.publish <<= SbtPgp.PgpKeys.publishSigned,
+    Keys.publishLocal <<= SbtPgp.PgpKeys.publishLocalSigned
+  )
 
-  def sbsBaseSettings = Seq(
-    name ~= Impl.formalName,
+  private def sbsBaseSettings = Seq(
+    name ~= Impl.formalize,
     organization := "ke.co.sbsproperties",
     organizationName := "Said bin Seif Properties Ltd.",
     organizationHomepage := Some(url("http://www.sbsproperties.co.ke"))
   )
 
-  def sbsCompileSettings = Seq[Setting[_]](
+  private def sbsCompileSettings = Seq[Setting[_]](
     scalacOptions <<= (SBSPlugin.sbsProfile, scalacOptions) map ((p, o) => {
       val opts = Seq(Opts.compile.deprecation, "-feature")
       val devOpts = opts ++ Seq(Opts.compile.unchecked, Opts.compile.explaintypes)
@@ -77,7 +96,7 @@ object SBSPlugin extends AutoPlugin {
     })
   )
 
-  def sbsPackageSettings: Seq[Setting[_]] = Seq(
+  private def sbsPackageSettings: Seq[Setting[_]] = Seq(
     packageOptions <<= (sbsImplementationVersion, version, packageOptions) map {
       (iv, sv, o) =>
         o :+ Package.ManifestAttributes(
@@ -88,36 +107,40 @@ object SBSPlugin extends AutoPlugin {
           "Specification-Version" -> sv)
     },
     mappings in(Compile, packageBin) <+= baseDirectory map {
-      (base: File) => (base / "LICENSE") -> "META-INF/LICENSE"
+      (base: File) => (base / "LICENSE") -> "META-INF/LICENSE.txt"
     },
     mappings in(Compile, packageSrc) <+= baseDirectory map {
-      (base: File) => (base / "LICENSE") -> "META-INF/LICENSE"
+      (base: File) => (base / "LICENSE") -> "META-INF/LICENSE.txt"
     },
     mappings in(Compile, packageBin) <+= baseDirectory map {
-      (base: File) => (base / "NOTICE") -> "META-INF/NOTICE"
+      (base: File) => (base / "NOTICE") -> "META-INF/NOTICE.txt"
     },
     mappings in(Compile, packageSrc) <+= baseDirectory map {
-      (base: File) => (base / "NOTICE") -> "META-INF/NOTICE"
+      (base: File) => (base / "NOTICE") -> "META-INF/NOTICE.txt"
     }
   )
 
-  def sbsPublishSettings: Seq[Setting[_]] = Seq(
-    publishTo <<= (SBSPlugin.sbsProfile, publishMavenStyle, version) {
-      (profile, mvn, v) =>
-        def release = if (v.contains("SNAPSHOT")) false
-        else profile match {
+  private def sbsPublishSettings: Seq[Setting[_]] = Seq(
+    publishTo <<= (SBSPlugin.sbsProfile, publishMavenStyle, version, libraryDependencies) {
+      (profile, mvn, ver, deps) =>
+        def snapshotMatch(s: String) = s.contains("SNAPSHOT") || s.contains("snapshot")
+        def isSnapshot = snapshotMatch(ver)
+        def snapshotDeps = !deps.filter((dep) =>  snapshotMatch(dep.revision) || snapshotMatch(dep.name)).isEmpty
+        def releaseProfile = profile match {
           case ReleaseProfile => true
           case _ => false
         }
+        def release = !isSnapshot && !snapshotDeps && releaseProfile
         Some(SBSResolver.publishToRepo(release, mvn))
     },
     publishMavenStyle := !sbtPlugin.value
   )
   
-  def sbsResolverSetting: Setting[Seq[Resolver]] = resolvers ++= SBSResolver.releaseResolvers
-  def sbsSnapshotResolverSetting: Setting[Seq[Resolver]] = resolvers ++= SBSResolver.snapshotResolvers
+  private def sbsResolverSetting: Setting[Seq[Resolver]] = resolvers ++= SBSResolver.releaseResolvers
 
-  def sbsBuildInfoSettings = {
+  private def sbsSnapshotResolverSetting: Setting[Seq[Resolver]] = resolvers ++= SBSResolver.snapshotResolvers
+
+  private def sbsBuildInfoSettings = {
     import BuildInfoPlugin._
     def defaultInfoKeys = Seq[BuildInfoKey](
       BuildInfoKey.setting(sbsImplementationVersion),
@@ -130,7 +153,12 @@ object SBSPlugin extends AutoPlugin {
     )
   }
 
-  def addBuildinfoKeys(keys: SettingKey[Any]*): Setting[_] = {
+  private def pgpSettings  ={
+    import SbtPgp.PgpKeys._
+    useGpg := true
+  }
+
+  def addBuildinfoKey(keys: SettingKey[Any]*): Setting[_] = {
     import BuildInfoPlugin._
     buildInfoKeys ++= keys.map(BuildInfoKey.setting)
   }
@@ -139,16 +167,16 @@ object SBSPlugin extends AutoPlugin {
 
   
   implicit class SBSProjectSyntax(p: Project) {
-    
-    def additionalInfoKeys(keys: SettingKey[Any]*) = p.settings(addBuildinfoKeys(keys: _*))
 
-    def withSubOrganization(s: String) = p.settings(addSubOrganisation(s))
+    def infoKeys(keys: SettingKey[Any]*) = p.settings(addBuildinfoKey(keys: _*))
 
-    def withSbsProjectSettings = p.settings(sbsProjectSettings: _*)
+    def subOrganisation(s: String) = p.settings(addSubOrganisation(s))
 
-    def withSbsSbtPluginSettings = p.settings(sbsSbtPluginProjectSettings: _*)
+    def sbsSettings = p.settings(sbsProjectSettings: _*)
 
-    def withSbsSnapshotResolvers = p.settings(sbsSnapshotResolverSetting)
+    def sbsSbtPluginSettings = p.settings(sbsSbtPluginProjectSettings: _*)
+
+    def snapshotResolvers = p.settings(sbsSnapshotResolverSetting)
   }
 
   
@@ -156,17 +184,8 @@ object SBSPlugin extends AutoPlugin {
 
     def teamcity: Boolean = !sys.env.get("TEAMCITY_VERSION").isEmpty
 
-    def formalName(name: String): String = name.replaceFirst("sbs", "SBS").split("-").map(_.capitalize).mkString(" ")
+    def formalize(name: String): String = name.replaceFirst("sbs", "SBS").split("-").map(_.capitalize).mkString(" ")
 
-    /**
-     * Helper method which builds a ''SemVer'' compliant project implementation version.
-     *
-     * @param version The current version of the project.
-     * @param buildNumber The current build number of the project
-     * @param buildVCSNumber The current version control revision number of the project.
-     * @return Project build version formatted as
-     *         "{PROJECT VERSION}+{BUILD NUMBER}.{SHORT VCS REVISION NUMBER}"
-     */
     def implementationVersion(version: String, buildNumber: String, buildVCSNumber: String) =
       if (!version.endsWith(implementationMeta(buildNumber, buildVCSNumber)) && !version.contains("+"))
         s"$version+${implementationMeta(buildNumber, buildVCSNumber)}"
@@ -185,20 +204,8 @@ object SBSPlugin extends AutoPlugin {
       if (!buildNumber.startsWith("UNKNOWN")) s"$buildNumber.$vcsNo" else vcsNo
     }
 
-    /**
-     * Returns the project build number if build is running under a supported CI server
-     *
-     * @param teamcity Retrieves build number from Teamcity if true
-     * @return Project build number
-     */
     def buildNumber(teamcity: Boolean): String = sys.env.get("BUILD_NUMBER").getOrElse("UNKNOWN")
 
-    /**
-     * Returns the project build git revision number
-     *
-     * @param teamcity Retrieves vcs revision number from Teamcity if true
-     * @return Project vcs revision number
-     */
     def buildVcsNumber(teamcity: Boolean, baseDir: File): String = {
       def isGitRepo(dir: File): Boolean = if (dir.listFiles().map(_.getName).contains(".git")) true
       else {

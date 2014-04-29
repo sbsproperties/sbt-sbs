@@ -1,5 +1,8 @@
 import sbt._
 import Keys._
+import ScriptedPlugin._
+import com.typesafe.sbt.SbtPgp._
+
 
 object Build extends sbt.Build {
   import Dependencies._
@@ -10,7 +13,6 @@ object Build extends sbt.Build {
 
   lazy val sbsSbtBuild = Project("sbt-sbs", file("."))
     .settings(sbsSbtBuildSettings: _*)
-    .dependsOn(Dependencies.aetherDeploy)
 
   def sbsSbtBuildSettings = ScriptedPlugin.scriptedSettings ++ Seq[Setting[_]](
     name := "SBT Sbs",
@@ -23,6 +25,8 @@ object Build extends sbt.Build {
     sbtPlugin := true,
     publishMavenStyle := false,
     sbsTeamcity := teamcity,
+    useGpg := true,
+    publish <<= PgpKeys.publishSigned,
     publishTo <<= version {
       (v) => {
         def r = !v.contains("SNAPSHOT")
@@ -30,9 +34,11 @@ object Build extends sbt.Build {
       }
     },
     buildVCSNumber <<= sbsTeamcity(tc => buildVCSNumberSetting(tc)),
-    sbtBuildInfo, sbtTeamcity,
-    resolvers ++= Seq(Resolver.sbtPluginRepo("snapshots"), ivyRepo(release = false)),
-    scalacOptions in Compile += "-deprecation"
+    sbtBuildInfo, sbtPgp, sbtTeamcity, aetherDeploy,
+    resolvers ++= Seq(Resolver.sbtPluginRepo("snapshots"), ivyRepo(release = true), ivyRepo(release = false)),
+    scalacOptions in Compile += "-deprecation",
+    scriptedRun <<= scriptedRun.dependsOn(publishLocal),
+    scriptedLaunchOpts <+= version { "-Dproject.version=" + _ }
   )
 
   def teamcity: Boolean = if (sys.env.get("TEAMCITY_VERSION").isEmpty) false else true
@@ -48,8 +54,9 @@ object Build extends sbt.Build {
 
   object Dependencies {
     val sbtBuildInfo = addSbtPlugin("com.eed3si9n" % "sbt-buildinfo" % "0.3.1")
+    val sbtPgp = addSbtPlugin("com.typesafe.sbt" % "sbt-pgp" % "0.8.3")
     val sbtTeamcity = addSbtPlugin("org.jetbrains" % "sbt-teamcity-logger" % "0.1.0-SNAPSHOT")
-    val aetherDeploy = uri("https://github.com/arktekk/sbt-aether-deploy.git") //TODO use source dep until binary available
+    val aetherDeploy = addSbtPlugin("no.arktekk.sbt" % "aether-deploy" % "0.12-M1-sbs") //TODO revert to upstream binary when available
   }
 
 }
