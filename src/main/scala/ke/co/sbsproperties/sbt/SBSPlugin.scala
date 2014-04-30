@@ -7,11 +7,14 @@ import scala.util.Try
 import com.typesafe.sbt.SbtPgp
 import sbtbuildinfo.{Plugin => BuildInfoPlugin}
 import com.typesafe.sbt.pgp.PgpKeys
+import sbt.plugins.{JvmPlugin}
 
 
 object SBSPlugin extends AutoPlugin {
 
   override def trigger: PluginTrigger = allRequirements
+
+  override def requires: Plugins = JvmPlugin
 
   override lazy val projectSettings: Seq[Def.Setting[_]] = sbsPluginSettings
 
@@ -19,9 +22,13 @@ object SBSPlugin extends AutoPlugin {
 
   case object ReleaseProfile extends BuildProfile
 
-  case object PreReleaseProfile extends BuildProfile
+  case object MilestoneProfile extends BuildProfile
+
+  case object IntegrationProfile extends BuildProfile
 
   case object DevelopmentProfile extends BuildProfile
+
+  @deprecated val PreReleaseProfile = IntegrationProfile
 
   val sbsBuildNumber =
     settingKey[String]("Build number computed from the CI environment. This setting should not be modified.")
@@ -49,9 +56,7 @@ object SBSPlugin extends AutoPlugin {
       (version, buildNumber, buildVCSNumber) => Impl.implementationVersion(version, buildNumber, buildVCSNumber)),
     sbsProfile <<= sbsProfile ?? DevelopmentProfile,
     sbsVersionMessage <<= (sbsTeamcity, sbsImplementationVersion).map(
-      (teamcity, version) => Impl.sbsVersionMessageSetting(teamcity, version)),
-    Keys.version <<= (Keys.version, Keys.publishMavenStyle, sbsBuildNumber, sbsBuildVCSNumber, sbsProfile)(
-      (v, m, bn, vn, p) => Impl.version(v, m, bn, vn, p))
+      (teamcity, version) => Impl.sbsVersionMessageSetting(teamcity, version))
   )
 
   val sbsDefaultSettings: Seq[Setting[_]] = sbsBaseSettings ++ sbsCompileSettings ++ sbsPackageSettings ++ 
@@ -65,7 +70,7 @@ object SBSPlugin extends AutoPlugin {
           (coords: aether.MavenCoordinates, mainArtifact: File, pom: File, artifacts: Map[Artifact, File], profile, orig) =>
             def signed = aether.Aether.createArtifact(artifacts, pom, coords, mainArtifact)
             profile match {
-              case ReleaseProfile | PreReleaseProfile => signed
+              case ReleaseProfile | IntegrationProfile => signed
               case _ => orig
             }
       }
@@ -80,6 +85,8 @@ object SBSPlugin extends AutoPlugin {
 
   private def sbsBaseSettings = Seq(
     name ~= Impl.formalize,
+    Keys.version <<= (Keys.version, Keys.publishMavenStyle, sbsBuildNumber, sbsBuildVCSNumber, sbsProfile)(
+      (v, m, bn, vn, p) => Impl.version(v, m, bn, vn, p)),
     organization := "ke.co.sbsproperties",
     organizationName := "Said bin Seif Properties Ltd.",
     organizationHomepage := Some(url("http://www.sbsproperties.co.ke"))
@@ -126,11 +133,11 @@ object SBSPlugin extends AutoPlugin {
         def snapshotMatch(s: String) = s.contains("SNAPSHOT") || s.contains("snapshot")
         def isSnapshot = snapshotMatch(ver)
         def snapshotDeps = !deps.filter((dep) =>  snapshotMatch(dep.revision) || snapshotMatch(dep.name)).isEmpty
-        def releaseProfile = profile match {
-          case ReleaseProfile => true
+        def releaseOrMilestone = profile match {
+          case ReleaseProfile | MilestoneProfile => true
           case _ => false
         }
-        def release = !isSnapshot && !snapshotDeps && releaseProfile
+        def release = !isSnapshot && !snapshotDeps && releaseOrMilestone
         Some(SBSResolver.publishToRepo(release, mvn))
     },
     publishMavenStyle := !sbtPlugin.value
@@ -184,7 +191,9 @@ object SBSPlugin extends AutoPlugin {
 
     def teamcity: Boolean = !sys.env.get("TEAMCITY_VERSION").isEmpty
 
-    def formalize(name: String): String = name.replaceFirst("sbs", "SBS").split("-").map(_.capitalize).mkString(" ")
+    def formalize(name: String): String = name.replaceFirst("sbs", "SBS")
+      .split("(?<!(^|[A-Z]))(?=[A-Z])|(?<!^)(?=[A-Z][a-z])")
+      .map(_.capitalize).mkString(" ")
 
     def implementationVersion(version: String, buildNumber: String, buildVCSNumber: String) =
       if (!version.endsWith(implementationMeta(buildNumber, buildVCSNumber)) && !version.contains("+"))
