@@ -18,42 +18,53 @@ object SBSPlugin extends AutoPlugin {
 
   override lazy val projectSettings: Seq[Def.Setting[_]] = sbsPluginSettings
 
-  sealed trait BuildProfile
+  object autoImport extends Keys with SBSResolver
 
-  case object ReleaseProfile extends BuildProfile
+  import autoImport._
 
-  case object MilestoneProfile extends BuildProfile
+  sealed trait Keys {
+    sealed trait BuildProfile
 
-  case object IntegrationProfile extends BuildProfile
+    case object ReleaseProfile extends BuildProfile
 
-  case object DevelopmentProfile extends BuildProfile
+    case object MilestoneProfile extends BuildProfile
 
-  @deprecated val PreReleaseProfile = IntegrationProfile
+    case object IntegrationProfile extends BuildProfile
 
-  val sbsBuildNumber =
-    settingKey[String]("Build number computed from the CI environment. This setting should not be modified.")
+    case object DevelopmentProfile extends BuildProfile
 
-  val sbsBuildVCSNumber =
-    settingKey[String]("VCS revision number computed from the CI environment. This setting should not be modified.")
+    @deprecated val PreReleaseProfile = IntegrationProfile
 
-  val sbsTeamcity =
-    settingKey[Boolean]("'true' if current build is running under TeamCity. This setting should not be modified.")
+    val sbsBuildNumber =
+      settingKey[String]("Build number computed from the CI environment. This setting should not be modified.")
 
-  val sbsImplementationVersion =
-    settingKey[String]("Implementation version computed from the current build. This setting should not be modified.")
+    val sbsBuildVCSNumber =
+      settingKey[String]("VCS revision number computed from the CI environment. This setting should not be modified.")
 
-  val sbsVersionMessage =
-    taskKey[Unit]("Updates the current TeamCity build number with the project implementation version.")
+    val sbsTeamcity =
+      settingKey[Boolean]("'true' if current build is running under TeamCity. This setting should not be modified.")
 
-  val sbsProfile =
-    settingKey[BuildProfile]("'BuildProfile' used to determine build specific settings.")
+    val sbsImplementationVersion =
+      settingKey[String]("Implementation version computed from the current build. This setting should not be modified.")
+
+    val sbsVersionMessage =
+      taskKey[Unit]("Updates the current TeamCity build number with the project implementation version.")
+
+    val sbsProfile =
+      settingKey[BuildProfile]("'BuildProfile' used to determine build specific settings.")
+
+    val sbsOss = settingKey[Boolean]("If true, configures project for open source publication and publishing.")
+  }
+
+
 
   private def sbsPluginSettings = Seq[Setting[_]](
     sbsTeamcity := Impl.teamcity,
     sbsBuildNumber <<= sbsTeamcity(Impl.buildNumber),
     sbsBuildVCSNumber <<= (Keys.baseDirectory, sbsTeamcity)((d, t) => Impl.buildVcsNumber(t, d)),
-    sbsImplementationVersion <<= (Keys.version, sbsBuildNumber, sbsBuildVCSNumber)(
-      (version, buildNumber, buildVCSNumber) => Impl.implementationVersion(version, buildNumber, buildVCSNumber)),
+    sbsImplementationVersion <<= (sbsProfile, sbsTeamcity, Keys.version, sbsBuildNumber, sbsBuildVCSNumber)(
+      (profile, tc, version, buildNumber, buildVCSNumber) =>
+        Impl.implementationVersion(profile, tc, version, buildNumber, buildVCSNumber)),
     sbsProfile <<= sbsProfile ?? DevelopmentProfile,
     sbsVersionMessage <<= (sbsTeamcity, sbsImplementationVersion).map(
       (teamcity, version) => Impl.sbsVersionMessageSetting(teamcity, version))
@@ -85,15 +96,15 @@ object SBSPlugin extends AutoPlugin {
 
   private def sbsBaseSettings = Seq(
     name ~= Impl.formalize,
-    Keys.version <<= (Keys.version, Keys.publishMavenStyle, sbsBuildNumber, sbsBuildVCSNumber, sbsProfile)(
-      (v, m, bn, vn, p) => Impl.version(v, m, bn, vn, p)),
+    Keys.version <<= (sbsProfile, sbsTeamcity, Keys.version, Keys.publishMavenStyle, sbsBuildNumber, sbsBuildVCSNumber)(
+      (p, t, v, m, bn, vn) => Impl.version(p, t, v, m, bn, vn)),
     organization := "ke.co.sbsproperties",
     organizationName := "Said bin Seif Properties Ltd.",
     organizationHomepage := Some(url("http://www.sbsproperties.co.ke"))
   )
 
   private def sbsCompileSettings = Seq[Setting[_]](
-    scalacOptions <<= (SBSPlugin.sbsProfile, scalacOptions) map ((p, o) => {
+    scalacOptions <<= (sbsProfile, scalacOptions) map ((p, o) => {
       val opts = Seq(Opts.compile.deprecation, "-feature")
       val devOpts = opts ++ Seq(Opts.compile.unchecked, Opts.compile.explaintypes)
       p match {
@@ -128,24 +139,24 @@ object SBSPlugin extends AutoPlugin {
   )
 
   private def sbsPublishSettings: Seq[Setting[_]] = Seq(
-    publishTo <<= (SBSPlugin.sbsProfile, publishMavenStyle, version, libraryDependencies) {
-      (profile, mvn, ver, deps) =>
+    publishTo <<= (sbsOss, sbsProfile, publishMavenStyle, version, libraryDependencies) {
+      (oss, profile, mvn, ver, deps) =>
         def snapshotMatch(s: String) = s.contains("SNAPSHOT") || s.contains("snapshot")
         def isSnapshot = snapshotMatch(ver)
         def snapshotDeps = !deps.filter((dep) =>  snapshotMatch(dep.revision) || snapshotMatch(dep.name)).isEmpty
-        def releaseOrMilestone = profile match {
+        def `release/milestone` = profile match {
           case ReleaseProfile | MilestoneProfile => true
           case _ => false
         }
-        def release = !isSnapshot && !snapshotDeps && releaseOrMilestone
-        Some(SBSResolver.publishToRepo(release, mvn))
+        def release = !isSnapshot && !snapshotDeps && `release/milestone`
+        Some(sbsPublishTo(release, oss, mvn))
     },
     publishMavenStyle := !sbtPlugin.value
   )
   
-  private def sbsResolverSetting: Setting[Seq[Resolver]] = resolvers ++= SBSResolver.releaseResolvers
+  private def sbsResolverSetting: Setting[Seq[Resolver]] = resolvers ++= sbsReleaseResolvers
 
-  private def sbsSnapshotResolverSetting: Setting[Seq[Resolver]] = resolvers ++= SBSResolver.snapshotResolvers
+  private def sbsSnapshotResolverSetting: Setting[Seq[Resolver]] = resolvers ++= sbsSnapshotResolvers
 
   private def sbsBuildInfoSettings = {
     import BuildInfoPlugin._
@@ -189,29 +200,37 @@ object SBSPlugin extends AutoPlugin {
   
   private object Impl {
 
+    // Check if we are building on TeamCity
     def teamcity: Boolean = !sys.env.get("TEAMCITY_VERSION").isEmpty
 
+    // Used to formalize project name for projects declared with the syntax 'val fooProject = project ...'
     def formalize(name: String): String = name.replaceFirst("sbs", "SBS")
-      .split("(?<!(^|[A-Z]))(?=[A-Z])|(?<!^)(?=[A-Z][a-z])")
+      .split("-|(?<!(^|[A-Z]))(?=[A-Z])|(?<!^)(?=[A-Z][a-z])")
       .map(_.capitalize).mkString(" ")
 
-    def implementationVersion(version: String, buildNumber: String, buildVCSNumber: String) =
-      if (!version.endsWith(implementationMeta(buildNumber, buildVCSNumber)) && !version.contains("+"))
-        s"$version+${implementationMeta(buildNumber, buildVCSNumber)}"
+    // Append relevent build implementation information to the version/revision
+    def implementationVersion(profile: BuildProfile, teamcity: Boolean, version: String, buildNumber: String, buildVCSNumber: String) =
+      if (!version.endsWith(implementationMeta(profile, teamcity, buildNumber, buildVCSNumber)) && !version.contains("+"))
+        s"$version+${implementationMeta(profile, teamcity, buildNumber, buildVCSNumber)}"
       else version
 
-    def version(version: String, mvn: Boolean, buildNumber: String, buildVCSNumber: String, profile: BuildProfile) =
+    def version(profile: BuildProfile, teamcity: Boolean, version: String, mvn: Boolean, buildNumber: String, buildVCSNumber: String) =
       (profile, mvn) match {
-        case (ReleaseProfile, false) => version
-        case (DevelopmentProfile, false) => version
         case (_, true) => version
-        case _ => s"$version+${implementationMeta(buildNumber, buildVCSNumber)}"
+        case (ReleaseProfile | MilestoneProfile, false) => version
+        case (DevelopmentProfile, false) => version
+        case _ => s"$version+${implementationMeta(profile, teamcity, buildNumber, buildVCSNumber)}"
       }
 
-    def implementationMeta(buildNumber: String, buildVCSNumber: String) = {
+    def implementationMeta(profile: BuildProfile, teamcity: Boolean, buildNumber: String, buildVCSNumber: String) = {
       def vcsNo = buildVCSNumber.take(7)
-      if (!buildNumber.startsWith("UNKNOWN")) s"$buildNumber.$vcsNo" else vcsNo
+      def published: Boolean = Seq(ReleaseProfile, MilestoneProfile, IntegrationProfile).exists(_.equals(profile))
+      def build = if (!teamcity) "" else if (published) s"b$buildNumber." else s"dev-b$buildNumber."
+
+      s"$build$vcsNo"
     }
+
+
 
     def buildNumber(teamcity: Boolean): String = sys.env.get("BUILD_NUMBER").getOrElse("UNKNOWN")
 
