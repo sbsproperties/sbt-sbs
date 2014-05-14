@@ -100,7 +100,8 @@ object SBSPlugin extends AutoPlugin {
       (p, t, v, m, bn, vn) => Impl.version(p, t, v, m, bn, vn)),
     organization := "ke.co.sbsproperties",
     organizationName := "Said bin Seif Properties Ltd.",
-    organizationHomepage := Some(url("http://www.sbsproperties.co.ke"))
+    organizationHomepage := Some(url("http://www.sbsproperties.co.ke")),
+    sbsOss <<= sbsOss ?? false
   )
 
   private def sbsCompileSettings = Seq[Setting[_]](
