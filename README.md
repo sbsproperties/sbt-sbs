@@ -7,7 +7,7 @@ Simple plug-in for simple configuration of a Said bin Seif Properties [sbt][1] p
 Build Status:  ![Build Status Icon][2]
 
 ### Supported [sbt][1] versions:
--  0.13.5-M2
+-  0.13.5-RC3
 
 
 ## Resolver Coordinates:
@@ -22,11 +22,6 @@ Snapshot Resolver:
 
 ## Artefact Coordinates:
 `addSbtPlugin("ke.co.sbsproperties" % "sbt-sbs" % "${VERSION}")`
-
-*Note:*  Until sbt-aether version >= 0.12 is released in binary form, it is also necessary to add it as a a source
-dependency to any dependent project with a `dependsOn` directive on:
-`uri("https://github.com/arktekk/sbt-aether-deploy.git")`
-
 
 
 [1]:  http://scala-sbt.org
