@@ -7,7 +7,7 @@ import scala.util.Try
 import com.typesafe.sbt.SbtPgp
 import sbtbuildinfo.{Plugin => BuildInfoPlugin}
 import com.typesafe.sbt.pgp.PgpKeys
-import sbt.plugins.{JvmPlugin}
+import sbt.plugins.JvmPlugin
 
 
 object SBSPlugin extends AutoPlugin {
@@ -18,7 +18,9 @@ object SBSPlugin extends AutoPlugin {
 
   override lazy val projectSettings: Seq[Def.Setting[_]] = sbsPluginSettings
 
-  object autoImport extends Keys with SBSResolver
+  object Import extends Keys with SBSResolver
+
+  val autoImport = Import
 
   import autoImport._
 
@@ -119,8 +121,7 @@ object SBSPlugin extends AutoPlugin {
     packageOptions <<= (sbsImplementationVersion, version, packageOptions) map {
       (iv, sv, o) =>
         o :+ Package.ManifestAttributes(
-          "Built-By" -> System.getProperty("user.name", "unknown"),
-          "Build-Jdk" -> System.getProperty("java.version", "unknown"),
+          "Built-By" -> System.getProperty("java.version", "unknown"),
           "Built-Time" -> java.util.Calendar.getInstance.getTimeInMillis.toString,
           "Implementation-Version" -> iv,
           "Specification-Version" -> sv)
@@ -140,6 +141,7 @@ object SBSPlugin extends AutoPlugin {
   )
 
   private def sbsPublishSettings: Seq[Setting[_]] = Seq(
+    publishMavenStyle <<= (sbsOss, sbtPlugin)((o, p) => if(o) true else !p),
     publishTo <<= (sbsOss, sbsProfile, publishMavenStyle, version, libraryDependencies) {
       (oss, profile, mvn, ver, deps) =>
         def snapshotMatch(s: String) = s.contains("SNAPSHOT") || s.contains("snapshot")
@@ -151,8 +153,7 @@ object SBSPlugin extends AutoPlugin {
         }
         def release = !isSnapshot && !snapshotDeps && `release/milestone`
         Some(sbsPublishTo(release, oss, mvn))
-    },
-    publishMavenStyle := !sbtPlugin.value
+    }
   )
   
   private def sbsResolverSetting: Setting[Seq[Resolver]] = resolvers ++= sbsReleaseResolvers
