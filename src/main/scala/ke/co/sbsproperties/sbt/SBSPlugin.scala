@@ -127,20 +127,21 @@ object SBSPlugin extends AutoPlugin {
           "Specification-Version" -> sv)
     },
     mappings in(Compile, packageBin) <+= baseDirectory map {
-      (base: File) => (base / "LICENSE") -> "META-INF/LICENSE.txt"
+      (base: File) => (base / "LICENSE") -> "META-INF/LICENSE"
     },
     mappings in(Compile, packageSrc) <+= baseDirectory map {
-      (base: File) => (base / "LICENSE") -> "META-INF/LICENSE.txt"
+      (base: File) => (base / "LICENSE") -> "META-INF/LICENSE"
     },
     mappings in(Compile, packageBin) <+= baseDirectory map {
-      (base: File) => (base / "NOTICE") -> "META-INF/NOTICE.txt"
+      (base: File) => (base / "NOTICE") -> "META-INF/NOTICE"
     },
     mappings in(Compile, packageSrc) <+= baseDirectory map {
-      (base: File) => (base / "NOTICE") -> "META-INF/NOTICE.txt"
+      (base: File) => (base / "NOTICE") -> "META-INF/NOTICE"
     }
   )
 
   private def sbsPublishSettings: Seq[Setting[_]] = Seq(
+    pomIncludeRepository <<= (pomIncludeRepository, sbsOss)((p, o) => if (o) _ => false else p),
     publishMavenStyle <<= (sbsOss, sbtPlugin)((o, p) => if(o) true else !p),
     publishTo <<= (sbsOss, sbsProfile, publishMavenStyle, version, libraryDependencies) {
       (oss, profile, mvn, ver, deps) =>
