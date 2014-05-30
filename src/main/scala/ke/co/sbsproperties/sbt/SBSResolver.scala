@@ -26,8 +26,8 @@ trait SBSResolver {
   val sonatypeOSSSnapshots: MavenRepository = s"Sonatype OSS Snapshot Repository" at
     s"$sonatypeResolverRoot/content/repositories/snapshots"
 
-  val sbsPublishTo = (release: Boolean, oss: Boolean,  mvn: Boolean) => {
-    if(!oss && mvn) sbsMavenRepository(release) else if (oss) ossRepository(release) else sbsIvyRepository(release)
+  val sbsPublishTo = (release: Boolean, internal: Boolean,  mvn: Boolean) => {
+    if(internal && mvn) sbsMavenRepository(release) else if (!internal) ossRepository(release) else sbsIvyRepository(release)
   }
 
   private def status(release: Boolean) = if (release) "release" else "snapshot"

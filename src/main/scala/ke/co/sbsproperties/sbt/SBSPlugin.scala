@@ -35,8 +35,6 @@ object SBSPlugin extends AutoPlugin {
 
     case object DevelopmentProfile extends BuildProfile
 
-    @deprecated val PreReleaseProfile = IntegrationProfile
-
     val sbsBuildNumber =
       settingKey[String]("Build number computed from the CI environment. This setting should not be modified.")
 
@@ -55,6 +53,8 @@ object SBSPlugin extends AutoPlugin {
     val sbsProfile =
       settingKey[BuildProfile]("'BuildProfile' used to determine build specific settings.")
 
+    val sbsRelease = settingKey[Boolean]("'true' if current build is a stable release. This setting should not be modified.")
+
     val sbsOss = settingKey[Boolean]("If true, configures project for open source publication and publishing.")
   }
 
@@ -68,6 +68,13 @@ object SBSPlugin extends AutoPlugin {
       (profile, tc, version, buildNumber, buildVCSNumber) =>
         Impl.implementationVersion(profile, tc, version, buildNumber, buildVCSNumber)),
     sbsProfile <<= sbsProfile ?? DevelopmentProfile,
+    sbsRelease := {
+      def `release/milestone` = sbsProfile.value match {
+        case ReleaseProfile | MilestoneProfile => true
+        case _ => false
+      }
+      !isSnapshot.value && `release/milestone`
+    },
     sbsVersionMessage <<= (sbsTeamcity, sbsImplementationVersion).map(
       (teamcity, version) => Impl.sbsVersionMessageSetting(teamcity, version))
   )
@@ -141,22 +148,18 @@ object SBSPlugin extends AutoPlugin {
   )
 
   private def sbsPublishSettings: Seq[Setting[_]] = Seq(
-    pomIncludeRepository <<= (pomIncludeRepository, sbsOss)((p, o) => if (o) _ => false else p),
-    publishMavenStyle <<= (sbsOss, sbtPlugin)((o, p) => if(o) true else !p),
-    publishTo <<= (sbsOss, sbsProfile, publishMavenStyle, version, libraryDependencies) {
-      (oss, profile, mvn, ver, deps) =>
-        def snapshotMatch(s: String) = s.contains("SNAPSHOT") || s.contains("snapshot")
-        def isSnapshot = snapshotMatch(ver)
-        def snapshotDeps = !deps.filter((dep) =>  snapshotMatch(dep.revision) || snapshotMatch(dep.name)).isEmpty
-        def `release/milestone` = profile match {
-          case ReleaseProfile | MilestoneProfile => true
-          case _ => false
-        }
-        def release = !isSnapshot && !snapshotDeps && `release/milestone`
-        Some(sbsPublishTo(release, oss, mvn))
-    }
+    pomIncludeRepository := (if (sbsOss.value) _ => false else pomIncludeRepository.value),
+    publishMavenStyle := (if (sbsOss.value) true else sbtPlugin.value),
+    isSnapshot := {
+      def snapshotMatch(s: String) = s.contains("SNAPSHOT") || s.contains("snapshot")
+      val isSnapshot = snapshotMatch(version.value)
+      val snapshotDeps = libraryDependencies.value.filter((dep) => snapshotMatch(dep.revision) || snapshotMatch(dep.name))
+      val containsSnapshotDeps = snapshotDeps.isEmpty
+      if (!isSnapshot && containsSnapshotDeps) true else isSnapshot
+    },
+    publishTo := Some(sbsPublishTo(sbsRelease.value, sbsOss.value, publishMavenStyle.value))
   )
-  
+
   private def sbsResolverSetting: Setting[Seq[Resolver]] = resolvers ++= sbsReleaseResolvers
 
   private def sbsSnapshotResolverSetting: Setting[Seq[Resolver]] = resolvers ++= sbsSnapshotResolvers
@@ -170,7 +173,8 @@ object SBSPlugin extends AutoPlugin {
     buildInfoSettings ++ Seq(
       sourceGenerators in Compile <+= buildInfo,
       buildInfoKeys := defaultInfoKeys,
-      buildInfoPackage := s"${normalizedName.value.replace("-", ".")}.build"
+      buildInfoPackage := s"${organization.value}.build",
+      buildInfoObject := normalizedName.value.split("-").map(_.capitalize).mkString("")
     )
   }
 
