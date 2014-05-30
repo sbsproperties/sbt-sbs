@@ -157,7 +157,7 @@ object SBSPlugin extends AutoPlugin {
       val containsSnapshotDeps = snapshotDeps.isEmpty
       if (!isSnapshot && containsSnapshotDeps) true else isSnapshot
     },
-    publishTo := Some(sbsPublishTo(sbsRelease.value, sbsOss.value, publishMavenStyle.value))
+    publishInternal(!sbsOss.value)
   )
 
   private def sbsResolverSetting: Setting[Seq[Resolver]] = resolvers ++= sbsReleaseResolvers
@@ -190,6 +190,7 @@ object SBSPlugin extends AutoPlugin {
   
   def addSubOrganisation(s: String): Setting[String] = organization <<= organization(_ + s".$s")
 
+  def publishInternal(internal: Boolean) = publishTo := Some(sbsPublishTo(sbsRelease.value, internal, publishMavenStyle.value))
   
   implicit class SBSProjectSyntax(p: Project) {
 
