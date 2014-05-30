@@ -33,9 +33,9 @@ object Build extends sbt.Build {
       }
     },
     buildVCSNumber <<= sbsTeamcity(tc => buildVCSNumberSetting(tc)),
-    sbtBuildInfo, sbtPgp, sbtTeamcity, aetherDeploy,
+    sbtBuildInfo, sbtPgp, aetherDeploy,
     resolvers ++= Seq(Resolver.sbtPluginRepo("snapshots"), ivyRepo(release = true), ivyRepo(release = false)),
-    scalacOptions in Compile += "-deprecation",
+    scalacOptions in Compile += Opts.compile.deprecation,
     scriptedRun <<= scriptedRun.dependsOn(publishLocal),
     scriptedLaunchOpts <+= version { "-Dproject.version=" + _ }
   )
@@ -54,7 +54,6 @@ object Build extends sbt.Build {
   object Dependencies {
     val sbtBuildInfo = addSbtPlugin("com.eed3si9n" % "sbt-buildinfo" % "0.3.1")
     val sbtPgp = addSbtPlugin("com.typesafe.sbt" % "sbt-pgp" % "0.8.3")
-    val sbtTeamcity = addSbtPlugin("org.jetbrains" % "sbt-teamcity-logger" % "0.1.0-SNAPSHOT")
     val aetherDeploy = addSbtPlugin("no.arktekk.sbt" % "aether-deploy" % "0.12-M1-sbs") //TODO revert to upstream binary when available
   }
 
