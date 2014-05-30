@@ -105,8 +105,8 @@ object SBSPlugin extends AutoPlugin {
 
   private def sbsBaseSettings = Seq(
     name ~= Impl.formalize,
-    Keys.version <<= (sbsProfile, sbsTeamcity, Keys.version, Keys.publishMavenStyle, sbsBuildNumber, sbsBuildVCSNumber)(
-      (p, t, v, m, bn, vn) => Impl.version(p, t, v, m, bn, vn)),
+    Keys.version := Impl.version(sbsProfile.value, sbsTeamcity.value, version.value, publishMavenStyle.value,
+      sbsBuildNumber.value, sbsBuildVCSNumber.value),
     organization := "ke.co.sbsproperties",
     organizationName := "Said bin Seif Properties Ltd.",
     organizationHomepage := Some(url("http://www.sbsproperties.co.ke")),
@@ -157,7 +157,7 @@ object SBSPlugin extends AutoPlugin {
       val containsSnapshotDeps = snapshotDeps.isEmpty
       if (!isSnapshot && containsSnapshotDeps) true else isSnapshot
     },
-    publishInternal(sbsOss, true)
+    publishInternal(sbsOss, invert = true)
   )
 
   private def sbsResolverSetting: Setting[Seq[Resolver]] = resolvers ++= sbsReleaseResolvers
@@ -190,14 +190,15 @@ object SBSPlugin extends AutoPlugin {
   
   def addSubOrganisation(s: String): Setting[String] = organization <<= organization(_ + s".$s")
 
-  def publishInternal(internal: Boolean) = publishTo := Some(sbsPublishTo(sbsRelease.value, internal, publishMavenStyle.value))
-  def publishInternal(internal: SettingKey[Boolean]) = publishInternal(internal, false)
-  def publishInternal(internal: SettingKey[Boolean], invert: Boolean) = {
+  def publishInternal(internal: Boolean): Setting[Option[Resolver]] =
+    publishTo := Some(sbsPublishTo(sbsRelease.value, internal, publishMavenStyle.value))
+  def publishInternal(internal: SettingKey[Boolean]): Setting[Option[Resolver]] = publishInternal(internal, invert = false)
+  def publishInternal(internal: SettingKey[Boolean], invert: Boolean): Setting[Option[Resolver]] = publishTo := {
     val i = {
       val in = internal.value
       if (invert) !in else in
     }
-   publishInternal(i)
+   Some(sbsPublishTo(sbsRelease.value, i, publishMavenStyle.value))
   }
 
 
