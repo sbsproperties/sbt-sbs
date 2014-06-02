@@ -114,14 +114,15 @@ object SBSPlugin extends AutoPlugin {
   )
 
   private def sbsCompileSettings = Seq[Setting[_]](
-    scalacOptions <<= (sbsProfile, scalacOptions) map ((p, o) => {
-      val opts = Seq(Opts.compile.deprecation, "-feature")
-      val devOpts = opts ++ Seq(Opts.compile.unchecked, Opts.compile.explaintypes)
-      p match {
+    scalacOptions := {
+      val opts = scalacOptions.value ++ Seq(Opts.compile.deprecation, "-feature")
+      if (sbsTeamcity.value) opts else {
+      val devOpts = opts ++ Seq(Opts.compile.unchecked, Opts.compile.explaintypes, "–Xcheck-null")
+      sbsProfile.value match {
         case DevelopmentProfile => devOpts;
         case _ => opts
-      }
-    })
+      }}
+    }
   )
 
   private def sbsPackageSettings: Seq[Setting[_]] = Seq(
