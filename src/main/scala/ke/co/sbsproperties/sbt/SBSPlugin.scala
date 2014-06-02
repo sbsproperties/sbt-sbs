@@ -116,12 +116,16 @@ object SBSPlugin extends AutoPlugin {
   private def sbsCompileSettings = Seq[Setting[_]](
     scalacOptions := {
       val opts = scalacOptions.value ++ Seq(Opts.compile.deprecation, "-feature")
-      if (sbsTeamcity.value) opts else {
+      val profile = sbsProfile.value
+      val prodOpts = opts :+ "-optimise"
       val devOpts = opts ++ Seq(Opts.compile.unchecked, Opts.compile.explaintypes, "–Xcheck-null")
-      sbsProfile.value match {
-        case DevelopmentProfile => devOpts;
-        case _ => opts
-      }}
+
+      (sbsTeamcity.value, profile) match {
+        case (true, p) if p != DevelopmentProfile => prodOpts
+        case (true, _) => opts
+        case (false, p) if p == DevelopmentProfile => devOpts
+        case _ => prodOpts
+      }
     }
   )
 
