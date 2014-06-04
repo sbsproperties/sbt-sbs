@@ -1,27 +1,21 @@
 sbt-sbs
 =======
 
-Simple plug-in for simple configuration of a Said bin Seif Properties [sbt][1] project.
+Simple plug-in for simple configuration of  Said bin Seif Properties' [sbt][1] projects.
 
+Build Status: ![Build Status Icon][2]
 
-Build Status:  ![Build Status Icon][2]
-
-### Supported [sbt][1] versions:
--  0.13.5-RC3
-
-
-## Resolver Coordinates:
-
-Release Resolver:
-`Resolver.url("SBS Ivy Releases", url("https://dev.sbsproperties.co.ke/repo/ivy-release"))(Resolver.ivyStylePatterns)`
-
-
-Snapshot Resolver:
-`Resolver.url("SBS Ivy Snapshots", url("https://dev.sbsproperties.co.ke/repo/ivy-snapshot"))(Resolver.ivyStylePatterns)`
+### Supported [sbt][1] version:
+-  0.13.5
 
 
 ## Artefact Coordinates:
-`addSbtPlugin("ke.co.sbsproperties" % "sbt-sbs" % "${VERSION}")`
+`addSbtPlugin("ke.co.sbsproperties" % "sbt-sbs" % "1.0-SNAPSHOT")`
+
+
+## License
+*sbt-sbs* is open source software released under the terms of the **Apache License, Version 2.0**. 
+
 
 
 [1]:  http://scala-sbt.org

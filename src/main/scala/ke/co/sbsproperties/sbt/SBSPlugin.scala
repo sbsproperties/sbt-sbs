@@ -1,3 +1,21 @@
+/**********************************************************************
+ * See the NOTICE file distributed with this work for additional      *
+ *   information regarding Copyright ownership.  The author/authors   *
+ *   license this file to you under the terms of the Apache License,  *
+ *   Version 2.0 (the "License"); you may not use this file except    *
+ *   in compliance with the License.  You may obtain a copy of the    *
+ *   License at:                                                      *
+ *                                                                    *
+ *       http://www.apache.org/licenses/LICENSE-2.0                   *
+ *                                                                    *
+ *   Unless required by applicable law or agreed to in writing,       *
+ *   software distributed under the License is distributed on an      *
+ *   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY           *
+ *   KIND, either express or implied.  See the License for the        *
+ *   specific language governing permissions and limitations          *
+ *   under the License.                                               *
+ **********************************************************************/
+
 package ke.co.sbsproperties.sbt
 
 import sbt._
@@ -18,13 +36,9 @@ object SBSPlugin extends AutoPlugin {
 
   override lazy val projectSettings: Seq[Def.Setting[_]] = sbsPluginSettings
 
-  object Import extends Keys with SBSResolver
+  object Import extends Import with SBSResolver
 
-  val autoImport = Import
-
-  import autoImport._
-
-  sealed trait Keys {
+  sealed trait Import {
     sealed trait BuildProfile
 
     case object ReleaseProfile extends BuildProfile
@@ -56,9 +70,38 @@ object SBSPlugin extends AutoPlugin {
     val sbsRelease = settingKey[Boolean]("'true' if current build is a stable release. This setting should not be modified.")
 
     val sbsOss = settingKey[Boolean]("If true, configures project for open source publication and publishing.")
+
+    def sbsProjectSettings: Seq[Setting[_]] = SBSPlugin.sbsProjectSettings
+    
+    def sbsPluginProjectSettings: Seq[Setting[_]] = SBSPlugin.sbsSbtPluginProjectSettings
+
+    def publishInternal(internal: Boolean): Setting[Option[Resolver]] = SBSPlugin.publishInternal(internal)
+
+    def publishInternal(internal: SettingKey[Boolean]): Setting[Option[Resolver]] = SBSPlugin.publishInternal(internal, invert = false)
+
+    def publishInternal(internal: SettingKey[Boolean], invert: Boolean): Setting[Option[Resolver]] = SBSPlugin.publishInternal(internal, invert)
+
+    def infoKeys(keys: SettingKey[Any]*): Setting[_] = SBSPlugin.addBuildInfoKey(keys: _*)
+
+    def subOrganisation(s: String): Setting[String] = SBSPlugin.addSubOrganisation(s)
+
+    implicit class SBSProjectSyntax(p: Project) {
+
+      def infoKeys(keys: SettingKey[Any]*) = p.settings(Import.infoKeys(keys: _*))
+
+      def subOrganisation(s: String) = p.settings(Import.subOrganisation(s))
+
+      def sbsSettings = p.settings(sbsProjectSettings: _*)
+
+      def sbsSbtPluginSettings = p.settings(sbsSbtPluginProjectSettings: _*)
+
+      def snapshotResolvers = p.settings(sbsSnapshotResolverSetting)
+    }
   }
 
+  val autoImport = Import
 
+  import autoImport._
 
   private def sbsPluginSettings = Seq[Setting[_]](
     sbsTeamcity := Impl.teamcity,
@@ -118,7 +161,7 @@ object SBSPlugin extends AutoPlugin {
       val opts = scalacOptions.value ++ Seq(Opts.compile.deprecation, "-feature")
       val profile = sbsProfile.value
       val prodOpts = opts :+ "-optimise"
-      val devOpts = opts ++ Seq(Opts.compile.unchecked, Opts.compile.explaintypes, "–Xcheck-null")
+      val devOpts = opts ++ Seq(Opts.compile.unchecked, "–Xlint")
 
       (sbsTeamcity.value, profile) match {
         case (true, p) if p != DevelopmentProfile => prodOpts
@@ -188,7 +231,7 @@ object SBSPlugin extends AutoPlugin {
     useGpg := true
   }
 
-  def addBuildinfoKey(keys: SettingKey[Any]*): Setting[_] = {
+  def addBuildInfoKey(keys: SettingKey[Any]*): Setting[_] = {
     import BuildInfoPlugin._
     buildInfoKeys ++= keys.map(BuildInfoKey.setting)
   }
@@ -197,7 +240,9 @@ object SBSPlugin extends AutoPlugin {
 
   def publishInternal(internal: Boolean): Setting[Option[Resolver]] =
     publishTo := Some(sbsPublishTo(sbsRelease.value, internal, publishMavenStyle.value))
+  
   def publishInternal(internal: SettingKey[Boolean]): Setting[Option[Resolver]] = publishInternal(internal, invert = false)
+  
   def publishInternal(internal: SettingKey[Boolean], invert: Boolean): Setting[Option[Resolver]] = publishTo := {
     val i = {
       val in = internal.value
@@ -205,22 +250,6 @@ object SBSPlugin extends AutoPlugin {
     }
    Some(sbsPublishTo(sbsRelease.value, i, publishMavenStyle.value))
   }
-
-
-
-  implicit class SBSProjectSyntax(p: Project) {
-
-    def infoKeys(keys: SettingKey[Any]*) = p.settings(addBuildinfoKey(keys: _*))
-
-    def subOrganisation(s: String) = p.settings(addSubOrganisation(s))
-
-    def sbsSettings = p.settings(sbsProjectSettings: _*)
-
-    def sbsSbtPluginSettings = p.settings(sbsSbtPluginProjectSettings: _*)
-
-    def snapshotResolvers = p.settings(sbsSnapshotResolverSetting)
-  }
-
   
   private object Impl {
 
@@ -248,13 +277,11 @@ object SBSPlugin extends AutoPlugin {
 
     def implementationMeta(profile: BuildProfile, teamcity: Boolean, buildNumber: String, buildVCSNumber: String) = {
       def vcsNo = buildVCSNumber.take(7)
-      def published: Boolean = Seq(ReleaseProfile, MilestoneProfile, IntegrationProfile).exists(_.equals(profile))
+      def published: Boolean = profile match {case ReleaseProfile | MilestoneProfile | IntegrationProfile => true; case _ => false}
       def build = if (!teamcity) "" else if (published) s"b$buildNumber." else s"dev-b$buildNumber."
 
       s"$build$vcsNo"
     }
-
-
 
     def buildNumber(teamcity: Boolean): String = sys.env.get("BUILD_NUMBER").getOrElse("UNKNOWN")
 
