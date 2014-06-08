@@ -157,7 +157,7 @@ object SBSPlugin extends AutoPlugin {
   )
 
   private def sbsCompileSettings = Seq[Setting[_]](
-    scalacOptions := {
+    scalacOptions in (Compile, compile) := {
       val opts = scalacOptions.value ++ Seq(Opts.compile.deprecation, "-feature")
       val profile = sbsProfile.value
       val prodOpts = opts :+ "-optimise"
@@ -169,7 +169,15 @@ object SBSPlugin extends AutoPlugin {
         case (false, p) if p == DevelopmentProfile => devOpts
         case _ => prodOpts
       }
-    }
+    },
+    scalacOptions in (Compile, doc)  ++= Seq(
+      "-doc-root-content", s"${(scalaSource in (Compile, compile)).value.getPath}/rootdoc.txt",
+      s"-doc-title", name.value,
+      s"-doc-version", version.value,
+      "-implicits",
+      s"-doc-external-doc:${scalaInstance.value.libraryJar}#http://www.scala-lang.org/api/${scalaVersion.value}/",
+      "-diagrams"
+    )
   )
 
   private def sbsPackageSettings: Seq[Setting[_]] = Seq(
