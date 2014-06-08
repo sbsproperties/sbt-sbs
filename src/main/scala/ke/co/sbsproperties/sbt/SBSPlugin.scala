@@ -231,7 +231,9 @@ object SBSPlugin extends AutoPlugin {
       buildInfoKeys := defaultInfoKeys,
       buildInfoPackage := s"${organization.value}.build",
       buildInfoObject := s"${normalizedName.value.split("-").map(_.capitalize).mkString("")}BuildInfo",
-      sources in(Compile, doc) ~= (_.filter(!_.name.contains(buildInfoObject.value)))
+      sources in(Compile, doc) <<= (sources in(Compile, doc), buildInfoObject) map { (s, o) =>
+        s.filter(!_.name.contains(o))
+      }
     )
   }
 
